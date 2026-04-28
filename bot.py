@@ -8,24 +8,11 @@ import time
 
 # --- FIREBASE DIRECT API SETUP ---
 BASE_URL = "https://earning-a9b0c-default-rtdb.firebaseio.com/phonepe_botz"
-
-# --- BOT SETUP ---
 BOT_TOKEN = "8701965138:AAEQ84qHLUVr8Bk0JrQKeQEPOJjfsutD7cs"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 CHANNELS = ["@earninglootsbestd", "@earnbox1"]
-GIVEAWAY_IMG = "https://i.ibb.co/7KzXb4p/giveaway-image.jpg"
 YT_VIDEO_LINK = "https://youtube.com/shorts/YOUR_VIDEO"
-
-def check_joined(user_id):
-    try:
-        for ch in CHANNELS:
-            status = bot.get_chat_member(ch, user_id).status
-            if status not in ['member', 'administrator', 'creator']:
-                return False
-        return True
-    except:
-        return False
 
 def get_user(uid):
     try:
@@ -40,26 +27,42 @@ def update_user(uid, data):
     except:
         pass
 
+def check_joined(user_id):
+    try:
+        for ch in CHANNELS:
+            status = bot.get_chat_member(ch, user_id).status
+            if status not in ['member', 'administrator', 'creator']:
+                return False
+        return True
+    except:
+        return False
+
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
-    try:
-        user_id = str(message.from_user.id)
-        args = message.text.split()
-        
-        user_data = get_user(user_id)
-        if not user_data:
-            referrer = args[1] if len(args) > 1 else ""
-            new_user = {"balance": 0.0, "verified": False, "active_key": "", "referrer": referrer}
+    user_id = str(message.from_user.id)
+    args = message.text.split()
+    
+    user_data = get_user(user_id)
+    if not user_data:
+        referrer = args[1] if len(args) > 1 else ""
+        new_user = {"balance": 0.0, "verified": False, "active_key": "", "referrer": referrer}
+        try:
             requests.put(f"{BASE_URL}/users/{user_id}.json", json=new_user, timeout=5)
+        except:
+            pass
 
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("JOIN CHANNEL 1", url=f"https://t.me/{CHANNELS[0][1:]}"))
-        markup.add(InlineKeyboardButton("JOIN CHANNEL 2", url=f"https://t.me/{CHANNELS[1][1:]}"))
-        markup.add(InlineKeyboardButton("✅ VERIFY", callback_data="verify_channels"))
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("JOIN CHANNEL 1", url=f"https://t.me/{CHANNELS[0][1:]}"))
+    markup.add(InlineKeyboardButton("JOIN CHANNEL 2", url=f"https://t.me/{CHANNELS[1][1:]}"))
+    markup.add(InlineKeyboardButton("✅ VERIFY", callback_data="verify_channels"))
 
-        bot.send_photo(message.chat.id, GIVEAWAY_IMG, caption="<b>HI USER JOIN CHANNEL AND EARN PHONEPE GIFT CARDS</b>", parse_mode="HTML", reply_markup=markup)
-    except Exception as e:
-        bot.send_message(message.chat.id, "Bot server is starting... please wait 2 seconds and send /start again.")
+    # FIX: send_photo hata diya taaki image link ki wajah se crash na ho. Direct text jayega.
+    bot.send_message(
+        message.chat.id, 
+        "<b>HI USER JOIN CHANNEL AND EARN PHONEPE GIFT CARDS</b>", 
+        parse_mode="HTML", 
+        reply_markup=markup
+    )
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_channels")
 def verify_callback(call):
@@ -177,7 +180,7 @@ def handle_withdrawal(call):
     else:
         bot.answer_callback_query(call.id, "Insufficient balance! Minimum exactly ₹1 needed.", show_alert=True)
 
-# --- RENDER WEB SERVER (MAIN THREAD) & BOT POLLING (BACKGROUND THREAD) ---
+# --- RENDER WEB SERVER & BOT START ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -189,12 +192,9 @@ def run_bot():
         try:
             bot.polling(none_stop=True, timeout=60)
         except Exception as e:
-            time.sleep(3) # Agar Telegram connection tute, toh 3 sec me wapas connect kare
+            time.sleep(3)
 
 if __name__ == "__main__":
-    # Bot ko background me bhej diya
     threading.Thread(target=run_bot, daemon=True).start()
-    
-    # Render ko port de diya taaki wo website chalu rakhe aur bot ko kill na kare
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
