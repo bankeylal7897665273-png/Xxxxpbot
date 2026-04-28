@@ -4,9 +4,9 @@ import requests
 import os
 from flask import Flask
 import threading
+import time
 
 # --- FIREBASE DIRECT API SETUP ---
-# Bina JSON file ke direct link connect hoga
 BASE_URL = "https://earning-a9b0c-default-rtdb.firebaseio.com/phonepe_botz"
 
 # --- BOT SETUP ---
@@ -14,8 +14,8 @@ BOT_TOKEN = "8701965138:AAEQ84qHLUVr8Bk0JrQKeQEPOJjfsutD7cs"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 CHANNELS = ["@earninglootsbestd", "@earnbox1"]
-GIVEAWAY_IMG = "https://i.ibb.co/7KzXb4p/giveaway-image.jpg" # Apna giveaway image URL
-YT_VIDEO_LINK = "https://youtube.com/shorts/YOUR_VIDEO" # How to redeem video
+GIVEAWAY_IMG = "https://i.ibb.co/7KzXb4p/giveaway-image.jpg"
+YT_VIDEO_LINK = "https://youtube.com/shorts/YOUR_VIDEO"
 
 def check_joined(user_id):
     try:
@@ -28,29 +28,38 @@ def check_joined(user_id):
         return False
 
 def get_user(uid):
-    res = requests.get(f"{BASE_URL}/users/{uid}.json")
-    return res.json() if res.status_code == 200 else None
+    try:
+        res = requests.get(f"{BASE_URL}/users/{uid}.json", timeout=5)
+        return res.json() if res.status_code == 200 else None
+    except:
+        return None
 
 def update_user(uid, data):
-    requests.patch(f"{BASE_URL}/users/{uid}.json", json=data)
+    try:
+        requests.patch(f"{BASE_URL}/users/{uid}.json", json=data, timeout=5)
+    except:
+        pass
 
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
-    user_id = str(message.from_user.id)
-    args = message.text.split()
-    
-    user_data = get_user(user_id)
-    if not user_data:
-        referrer = args[1] if len(args) > 1 else ""
-        new_user = {"balance": 0.0, "verified": False, "active_key": "", "referrer": referrer}
-        requests.put(f"{BASE_URL}/users/{user_id}.json", json=new_user)
+    try:
+        user_id = str(message.from_user.id)
+        args = message.text.split()
+        
+        user_data = get_user(user_id)
+        if not user_data:
+            referrer = args[1] if len(args) > 1 else ""
+            new_user = {"balance": 0.0, "verified": False, "active_key": "", "referrer": referrer}
+            requests.put(f"{BASE_URL}/users/{user_id}.json", json=new_user, timeout=5)
 
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("JOIN CHANNEL 1", url=f"https://t.me/{CHANNELS[0][1:]}"))
-    markup.add(InlineKeyboardButton("JOIN CHANNEL 2", url=f"https://t.me/{CHANNELS[1][1:]}"))
-    markup.add(InlineKeyboardButton("✅ VERIFY", callback_data="verify_channels"))
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("JOIN CHANNEL 1", url=f"https://t.me/{CHANNELS[0][1:]}"))
+        markup.add(InlineKeyboardButton("JOIN CHANNEL 2", url=f"https://t.me/{CHANNELS[1][1:]}"))
+        markup.add(InlineKeyboardButton("✅ VERIFY", callback_data="verify_channels"))
 
-    bot.send_photo(message.chat.id, GIVEAWAY_IMG, caption="<b>HI USER JOIN CHANNEL AND EARN PHONEPE GIFT CARDS</b>", parse_mode="HTML", reply_markup=markup)
+        bot.send_photo(message.chat.id, GIVEAWAY_IMG, caption="<b>HI USER JOIN CHANNEL AND EARN PHONEPE GIFT CARDS</b>", parse_mode="HTML", reply_markup=markup)
+    except Exception as e:
+        bot.send_message(message.chat.id, "Bot server is starting... please wait 2 seconds and send /start again.")
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_channels")
 def verify_callback(call):
@@ -69,29 +78,37 @@ def verify_callback(call):
                     update_user(referrer_id, {"balance": ref_bal + 0.5})
 
         if not user_data.get('active_key', ""):
-            gen_data = requests.get(f"{BASE_URL}/settings.json").json() or {}
-            gen_url = gen_data.get('gen_url', "Link Not Set by Admin")
-            bot.send_message(call.message.chat.id, f"✅ Channels Verified!\n\n⚠️ Now please enter your <b>Bot Active Key</b> to continue.\n\n🌐 Active Generator Website:\n{gen_url}", parse_mode="HTML")
+            try:
+                gen_data = requests.get(f"{BASE_URL}/settings.json", timeout=5).json() or {}
+                gen_url = gen_data.get('gen_url', "Link Not Set by Admin")
+            except:
+                gen_url = "Link Not Set by Admin"
+                
+            msg = f"✅ Channels Verified!\n\n⚠️ Now please enter your <b>Bot Active Key</b> to continue.\n\n🌐 Active Generator Website:\n{gen_url}"
+            bot.send_message(call.message.chat.id, msg, parse_mode="HTML")
             bot.register_next_step_handler(call.message, process_active_key)
         else:
             show_main_menu(call.message.chat.id)
     else:
         bot.answer_callback_query(call.id, "Bhai pehle dono channels join karo!", show_alert=True)
-        start_cmd(call.message)
 
 def process_active_key(message):
     user_id = str(message.from_user.id)
     key_entered = message.text.strip()
     
-    key_res = requests.get(f"{BASE_URL}/keys/{key_entered}.json").json()
-    
-    if key_res and not key_res.get('used', True):
-        requests.patch(f"{BASE_URL}/keys/{key_entered}.json", json={"used": True})
-        update_user(user_id, {"active_key": key_entered})
-        bot.send_message(message.chat.id, "✅ Key Verified Successfully!")
-        show_main_menu(message.chat.id)
-    else:
-        bot.send_message(message.chat.id, "❌ Invalid or Used Key. Please generate a new one.")
+    try:
+        key_res = requests.get(f"{BASE_URL}/keys/{key_entered}.json", timeout=5).json()
+        
+        if key_res and not key_res.get('used', True):
+            requests.patch(f"{BASE_URL}/keys/{key_entered}.json", json={"used": True}, timeout=5)
+            update_user(user_id, {"active_key": key_entered})
+            bot.send_message(message.chat.id, "✅ Key Verified Successfully!")
+            show_main_menu(message.chat.id)
+        else:
+            bot.send_message(message.chat.id, "❌ Invalid or Used Key. Please generate a new one.")
+            bot.register_next_step_handler(message, process_active_key)
+    except:
+        bot.send_message(message.chat.id, "Server is busy. Try again.")
         bot.register_next_step_handler(message, process_active_key)
 
 def show_main_menu(chat_id):
@@ -132,45 +149,52 @@ def handle_withdrawal(call):
     bal = user_data.get('balance', 0.0)
     
     if bal >= 1.0:
-        cards_res = requests.get(f"{BASE_URL}/gift_cards.json").json() or {}
-        card_found = False
-        
-        for card_key, card_data in cards_res.items():
-            if not card_data.get('used', True):
-                # Mark card used & cut balance
-                requests.patch(f"{BASE_URL}/gift_cards/{card_key}.json", json={'used': True})
-                update_user(user_id, {'balance': bal - 1.0})
-                
-                success_msg = (
-                    "🎉 <b>Withdrawal Successful!</b>\n\n"
-                    "👇 Click below to copy your details:\n"
-                    f"<b>ID:</b> <code>{card_data['id']}</code>\n"
-                    f"<b>PIN:</b> <code>{card_data['pin']}</code>\n\n"
-                    f"📺 <a href='{YT_VIDEO_LINK}'>How to Redeem Video</a>"
-                )
-                bot.send_message(call.message.chat.id, success_msg, parse_mode="HTML")
-                bot.answer_callback_query(call.id, "Redeem Successful!")
-                card_found = True
-                break
-                
-        if not card_found:
-            bot.answer_callback_query(call.id, "Please wait 24 hours for your redeem successful", show_alert=True)
+        try:
+            cards_res = requests.get(f"{BASE_URL}/gift_cards.json", timeout=5).json() or {}
+            card_found = False
+            
+            for card_key, card_data in cards_res.items():
+                if not card_data.get('used', True):
+                    requests.patch(f"{BASE_URL}/gift_cards/{card_key}.json", json={'used': True}, timeout=5)
+                    update_user(user_id, {'balance': bal - 1.0})
+                    
+                    success_msg = (
+                        "🎉 <b>Withdrawal Successful!</b>\n\n"
+                        "👇 Click below to copy your details:\n"
+                        f"<b>ID:</b> <code>{card_data['id']}</code>\n"
+                        f"<b>PIN:</b> <code>{card_data['pin']}</code>\n\n"
+                        f"📺 <a href='{YT_VIDEO_LINK}'>How to Redeem Video</a>"
+                    )
+                    bot.send_message(call.message.chat.id, success_msg, parse_mode="HTML")
+                    bot.answer_callback_query(call.id, "Redeem Successful!")
+                    card_found = True
+                    break
+                    
+            if not card_found:
+                bot.answer_callback_query(call.id, "Please wait 24 hours for your redeem successful", show_alert=True)
+        except:
+            bot.answer_callback_query(call.id, "Server slow, please try again.", show_alert=True)
     else:
         bot.answer_callback_query(call.id, "Insufficient balance! Minimum exactly ₹1 needed.", show_alert=True)
 
-# --- RENDER WEB SERVICE DUMMY SERVER ---
+# --- RENDER WEB SERVER (MAIN THREAD) & BOT POLLING (BACKGROUND THREAD) ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "VIP Bot is Running Perfectly on Render (No JSON File Needed)!"
+    return "VIP Bot is Running Perfectly on Render (Bot Active)!"
 
-def run_server():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+def run_bot():
+    while True:
+        try:
+            bot.polling(none_stop=True, timeout=60)
+        except Exception as e:
+            time.sleep(3) # Agar Telegram connection tute, toh 3 sec me wapas connect kare
 
 if __name__ == "__main__":
-    server_thread = threading.Thread(target=run_server)
-    server_thread.start()
-    print("🤖 VIP Bot is live!")
-    bot.infinity_polling()
+    # Bot ko background me bhej diya
+    threading.Thread(target=run_bot, daemon=True).start()
+    
+    # Render ko port de diya taaki wo website chalu rakhe aur bot ko kill na kare
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
