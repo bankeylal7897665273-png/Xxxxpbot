@@ -12,7 +12,7 @@ BOT_TOKEN = "8701965138:AAEQ84qHLUVr8Bk0JrQKeQEPOJjfsutD7cs"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 CHANNELS = ["@earninglootsbestd", "@earnbox1"]
-YT_VIDEO_LINK = "https://youtube.com/shorts/YOUR_VIDEO"
+YT_VIDEO_LINK = "https://youtube.com/shorts/cLdbciT-UmE?si=e6ZR5B2IsCz9JgC-"
 
 def get_user(uid):
     try:
